@@ -25,7 +25,7 @@ pipx install git+https://github.com/he1se1/kemomctr.git
 Windows (PowerShell):
 
 ```powershell
-$env:GEMINI_KEY="<YOUR_API_KEY>"
+$env:GOOGLE_API_KEY="<YOUR_API_KEY>"
 ```
 
 永続化させたい場合は、Windowsの「システムの詳細設定」＞「環境変数」から追加してください。
@@ -33,7 +33,7 @@ $env:GEMINI_KEY="<YOUR_API_KEY>"
 Mac / Linux:
 
 ```bash
-export GEMINI_KEY="<YOUR_API_KEY>"
+export GOOGLE_API_KEY="<YOUR_API_KEY>"
 ```
 
 永続化させたい場合はこれを `~/.bashrc` や `~/.zshrc` に追記してください。

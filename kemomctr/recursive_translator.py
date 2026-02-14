@@ -43,7 +43,7 @@ def load_glossary(csv_path, source_lang, target_lang):
 
 def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary_path=None):
     if not API_KEY:
-        print("エラー: 環境変数 GEMINI_KEY が設定されていません。")
+        print("エラー: 環境変数 GOOGLE_API_KEY が設定されていません。")
         sys.exit(1)
 
     client = genai.Client(api_key=API_KEY)
