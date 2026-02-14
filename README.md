@@ -75,7 +75,7 @@ UTI mod用などに、`en_us.json`も同様にコピーするオプションが�
 
 基本コマンド
 ```Bash
-kemomctr cor /some/dir/contains/lang/files/ /direcory/to/save/resourcepack/ -m 1.18.2 --en
+kemomctr col /some/dir/contains/lang/files/ /direcory/to/save/resourcepack/ -m 1.18.2 --en
 ```
 
 オプション
