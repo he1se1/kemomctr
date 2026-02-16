@@ -6,7 +6,7 @@ from google.genai import types
 # ==========================================
 # 設定
 # ==========================================
-MODEL_NAME = "gemini-3-flash-preview"
+MODEL_NAME = os.getenv("KEMOMCTR_MODEL", "gemini-3-flash-preview")
 BATCH_SIZE = 30
 
 LANG_NAME_MAP = {

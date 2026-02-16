@@ -2,8 +2,8 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)
 
-AI-driven Minecraft Mod translator featuring recursive search, glossary support, and resume functionality via Gemini 3.0 Flash. Supports MC1.13-1.20.  
-MinecraftのModのAI翻訳ツール。翻訳対象ファイルを探索しての翻訳が可能。Gemini 3.0 Flashを使用。Minecraft バージョン1.13から1.20までに対応。
+AI-driven Minecraft Mod translator featuring recursive search, glossary support, and resume functionality via Gemini. Supports MC1.13-1.20.  
+MinecraftのModのAI翻訳ツール。翻訳対象ファイルを探索しての翻訳が可能。Geminiを使用。Minecraft バージョン1.13から1.20までに対応。
 
 # 📥 セットアップ
 
@@ -16,8 +16,10 @@ MinecraftのModのAI翻訳ツール。翻訳対象ファイルを探索しての
 pipx install git+https://github.com/he1se1/kemomctr.git
 ```
 
-## 2. APIキーの設定
-翻訳にはGoogle GeminiのAPIキーが必要です。環境変数 GOOGLE_API_KEY に取得したAPIキーを設定してください。
+## 2. 環境変数の設定
+翻訳にはGoogle GeminiのAPIキーが必要です。環境変数 `GOOGLE_API_KEY` に取得したAPIキーを設定してください。
+
+環境変数`KEMOMCTR_MODEL`で使用するモデルを指定できます。デフォルト値は`gemini-3-flash-preview`です。
 
 <details>
 <summary>環境変数の設定のしかた</summary>
