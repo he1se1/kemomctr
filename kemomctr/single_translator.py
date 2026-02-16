@@ -3,9 +3,7 @@ import json
 import time
 from google.genai import types
 
-# ==========================================
 # 設定
-# ==========================================
 MODEL_NAME = os.getenv("KEMOMCTR_MODEL", "gemini-3-flash-preview")
 BATCH_SIZE = 30
 
@@ -59,7 +57,7 @@ def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, 
     1. Preserve format specifiers exactly (%s, %d, %.1f).
     2. Do NOT translate technical keys.
     3. Use the Glossary provided below.
-    4. Context: Minecraft Gaming.
+    4. Context: Modded Minecraft Gaming.
     
     # Glossary
     {json.dumps(glossary, ensure_ascii=False)}
@@ -94,7 +92,7 @@ def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, 
         print(f" 失敗: {e}")
         return None
 
-def process_single_file(client, src_path_full, tgt_path_full, target_dir, source_lang, target_lang, glossary):
+def process_single_file(client, src_path_full, tgt_path_full, target_dir, source_lang, target_lang, glossary, translation_memory=None):
     interrupted = False
     new_translations = {}
     existing_tgt_data = {}
@@ -106,13 +104,11 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
     print(f"\n[{rel_path}]")
 
     try:
-        # 1. 翻訳元の読み込み
         with open(src_path_full, 'r', encoding='utf-8') as f:
             source_data = json.load(f)
         if not isinstance(source_data, dict):
             return False
 
-        # 2. 翻訳先の読み込みと修復
         if os.path.exists(tgt_path_full):
             try:
                 with open(tgt_path_full, 'r', encoding='utf-8') as f:
@@ -125,27 +121,48 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
             except Exception:
                 pass
 
-        # 3. 差分抽出
+        # 差分抽出
         missing_data = {k: v for k, v in source_data.items() if k not in existing_tgt_data}
         if not missing_data:
             return False
         
-        print(f"  -> 未翻訳: {len(missing_data)}件")
-        
-        # 4. バッチ分割と翻訳
-        items = list(missing_data.items())
-        chunks = [dict(items[i:i + BATCH_SIZE]) for i in range(0, len(items), BATCH_SIZE)]
-        
-        if chunks:
-            print(f"  -> 翻訳開始: {len(items)}項目 / {len(chunks)}バッチ")
+        tm_hit_count = 0
+        final_missing_data = {}
 
-        for i, chunk in enumerate(chunks, 1):
-            translated_chunk = translate_chunk(client, chunk, i, len(chunks), source_lang, target_lang, glossary)
-            if translated_chunk and isinstance(translated_chunk, dict):
-                new_translations.update(translated_chunk)
-            else:
-                print(f"    [警告] Batch {i} 失敗 (スキップ)")
-            time.sleep(1)
+        if translation_memory:
+            for key, src_text in missing_data.items():
+                # 原文がメモリにあれば、その訳を採用
+                if src_text in translation_memory:
+                    new_translations[key] = translation_memory[src_text]
+                    tm_hit_count += 1
+                else:
+                    # なければAPI翻訳リストへ
+                    final_missing_data[key] = src_text
+        else:
+            final_missing_data = missing_data
+
+        if tm_hit_count > 0:
+            print(f"  -> 翻訳メモリ適用: {tm_hit_count}件 (API節約!)")
+        
+        if not final_missing_data and not new_translations:
+            return False
+        
+        if final_missing_data:
+            print(f"  -> API翻訳へ: {len(final_missing_data)}件")
+            
+            items = list(final_missing_data.items())
+            chunks = [dict(items[i:i + BATCH_SIZE]) for i in range(0, len(items), BATCH_SIZE)]
+            
+            if chunks:
+                print(f"  -> 翻訳開始: {len(items)}項目 / {len(chunks)}バッチ")
+
+            for i, chunk in enumerate(chunks, 1):
+                translated_chunk = translate_chunk(client, chunk, i, len(chunks), source_lang, target_lang, glossary)
+                if translated_chunk and isinstance(translated_chunk, dict):
+                    new_translations.update(translated_chunk)
+                else:
+                    print(f"    [警告] Batch {i} 失敗 (スキップ)")
+                time.sleep(1)
 
     except KeyboardInterrupt:
         print("\n  [!] ユーザーによる中断を検知しました。現在完了しているバッチまでのデータを保存して終了します...")
@@ -158,7 +175,6 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
         existing_tgt_data.update(new_translations)
         temp_file = f"{tgt_path_full}.tmp"
         try:
-            # アトミック保存 (一時ファイルに書いてからリネーム)
             with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump(existing_tgt_data, f, ensure_ascii=False, indent=4)
             os.replace(temp_file, tgt_path_full)

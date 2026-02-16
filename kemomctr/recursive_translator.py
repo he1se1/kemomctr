@@ -5,6 +5,7 @@ from pathlib import Path
 from google import genai
 
 from . import single_translator
+from . import tm_manager
 
 API_KEY = os.getenv("GOOGLE_API_KEY")
 
@@ -41,9 +42,9 @@ def load_glossary(csv_path, source_lang, target_lang):
         
     return glossary
 
-def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary_path=None):
+def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary_path=None, ref_dir=None):
     if not API_KEY:
-        print("エラー: 環境変数 GOOGLE_API_KEY が設定されていません。")
+        print("エラー: 環境変数 GEMINI_KEY が設定されていません。")
         sys.exit(1)
 
     client = genai.Client(api_key=API_KEY)
@@ -59,8 +60,12 @@ def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary
     print(f"探索: {target_dir}")
     print(f"設定: {source_filename} -> {target_filename}")
     
-    # 探索前に1度だけ用語集をロードする
     glossary = load_glossary(glossary_path, source_lang, target_lang)
+
+    # ▼▼▼ 翻訳メモリの構築 ▼▼▼
+    translation_memory = {}
+    if ref_dir:
+        translation_memory = tm_manager.build_translation_memory(ref_dir, source_lang, target_lang)
 
     print("ヒント: 実行中に Ctrl+C を押すと途中経過を保存して安全に終了します。")
 
@@ -70,7 +75,7 @@ def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary
                 src_path_full = os.path.join(root, source_filename)
                 tgt_path_full = os.path.join(root, target_filename)
                 
-                # glossaryを投げる
+                # memory を渡す
                 interrupted = single_translator.process_single_file(
                     client=client,
                     src_path_full=src_path_full,
@@ -78,7 +83,8 @@ def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary
                     target_dir=target_dir,
                     source_lang=source_lang,
                     target_lang=target_lang,
-                    glossary=glossary
+                    glossary=glossary,
+                    translation_memory=translation_memory # ▼ 追加
                 )
                 
                 if interrupted:
