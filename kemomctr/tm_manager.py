@@ -5,7 +5,7 @@ from pathlib import Path
 def build_translation_memory(ref_dir, source_lang, target_lang):
     """
     参照ディレクトリ(旧Ver)を走査し、
-    { "English Text": "Japanese Text" } の形式でメモリ上に辞書を構築する。
+    { "source Text": "target Text" } の形式でメモリ上に辞書を構築する。
     """
     tm = {}
     ref_path = Path(ref_dir)
