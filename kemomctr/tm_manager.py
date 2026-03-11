@@ -47,5 +47,5 @@ def build_translation_memory(ref_dir, source_lang, target_lang):
                 # 読み込みエラーは無視して次へ
                 continue
 
-    print(f"  -> メモリ構築完了: {len(tm)} 件のフレーズを学習しました (ファイル数: {file_count})")
+    print(f"  -> メモリ構築完了: {len(tm)} 件を登録しました (ファイル数: {file_count})")
     return tm
