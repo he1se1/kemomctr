@@ -2,8 +2,8 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)
 
-AI-driven Minecraft Mod translator featuring recursive search, glossary support, and resume functionality via Gemini 3.0 Flash. Supports MC1.13-1.20.  
-MinecraftのModのAI翻訳ツール。翻訳対象ファイルを探索しての翻訳が可能。Gemini 3.0 Flashを使用。Minecraft バージョン1.13から1.20までに対応。
+AI-driven Minecraft Mod translator featuring recursive search, glossary support, and resume functionality via Gemini. Supports MC1.13-1.20.  
+MinecraftのModのAI翻訳ツール。翻訳対象ファイルを探索しての翻訳が可能。Geminiを使用。Minecraft バージョン1.13から1.20までに対応。
 
 # 📥 セットアップ
 
@@ -20,8 +20,10 @@ uv tool install git+https://github.com/he1se1/kemomctr.git
 pipx install git+https://github.com/he1se1/kemomctr.git
 ```
 
-## 2. APIキーの設定
-翻訳にはGoogle GeminiのAPIキーが必要です。環境変数 GOOGLE_API_KEY に取得したAPIキーを設定してください。
+## 2. 環境変数の設定
+翻訳にはGoogle GeminiのAPIキーが必要です。環境変数 `GOOGLE_API_KEY` に取得したAPIキーを設定してください。
+
+環境変数`KEMOMCTR_MODEL`で使用するモデルを指定できます。デフォルト値は`gemini-3-flash-preview`です。
 
 <details>
 <summary>環境変数の設定のしかた</summary>
@@ -29,7 +31,7 @@ pipx install git+https://github.com/he1se1/kemomctr.git
 Windows (PowerShell):
 
 ```powershell
-$env:GEMINI_KEY="<YOUR_API_KEY>"
+$env:GOOGLE_API_KEY="<YOUR_API_KEY>"
 ```
 
 永続化させたい場合は、Windowsの「システムの詳細設定」＞「環境変数」から追加してください。
@@ -37,7 +39,7 @@ $env:GEMINI_KEY="<YOUR_API_KEY>"
 Mac / Linux:
 
 ```bash
-export GEMINI_KEY="<YOUR_API_KEY>"
+export GOOGLE_API_KEY="<YOUR_API_KEY>"
 ```
 
 永続化させたい場合はこれを `~/.bashrc` や `~/.zshrc` に追記してください。
@@ -58,6 +60,7 @@ kemomctr tr /modpack/kubejs/assets/ -s en_us -t ja_jp -g path/to/glossary.csv
 - `-s` / `--source` : 翻訳元の言語コード (デフォルト: en_us)
 - `-t` / `--target` : 翻訳先の言語コード (デフォルト: ja_jp)
 - `-g` / `--glossary` : 用語集のパス
+- `-r` / `--ref` : 旧バージョンのパス
 
 CSV形式の用語集を与えて訳語を指定することができます。  
 1行目に言語コードを記述し、それ以下に訳語の組を記述します。実行時はソースとターゲットに指定した言語のカラムのみが使われます。また各行について、どちらかの値が空欄ならそれは無視されます。  
@@ -67,6 +70,8 @@ en_us,zh_cn,ja_jp
 Certus Quartz,赛特斯石英,ケルタスクォーツ
 ...
 ```
+
+Modpackの更新時などに、旧バージョンの翻訳があれば、それを流用することでAPIと時間を節約できます。オプション`-r`に与えたパス以下のディレクトリを探索し、同じディレクトリに翻訳元と先のlangファイルが両方存在すれば、それから辞書を生成し、翻訳時に流用します。性質上、完全一致でのみ翻訳を流用することができます。
 
 動作はCTRL+C(KeyboardInterrupt)で中断できます。中断した場合はそれまでの進捗が保存されます。
 
@@ -79,7 +84,7 @@ UTI mod用などに、`en_us.json`も同様にコピーするオプションが�
 
 基本コマンド
 ```Bash
-kemomctr cor /some/dir/contains/lang/files/ /direcory/to/save/resourcepack/ -m 1.18.2 --en
+kemomctr col /some/dir/contains/lang/files/ /direcory/to/save/resourcepack/ -m 1.18.2 --en
 ```
 
 オプション
@@ -90,7 +95,7 @@ kemomctr cor /some/dir/contains/lang/files/ /direcory/to/save/resourcepack/ -m 1
 
 # 🗺️実装予定機能
 - 既存の翻訳からのglossaryの自動生成および動的生成
-- アップデートに対応するための差分翻訳(ソース言語の差分を確認して再度翻訳)
+- アップデートに対応するための差分翻訳(ソース言語の差分を確認して再度翻訳): 一部完了
 - coremod等のjarを展開し翻訳する
 - MC1.21以降のsnbt形式のlangファイルへの対応
 
