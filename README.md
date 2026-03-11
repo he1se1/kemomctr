@@ -7,10 +7,14 @@ MinecraftのModのAI翻訳ツール。翻訳対象ファイルを探索しての
 
 # 📥 セットアップ
 
-このツールは、Python環境を汚さずにCLIツールを導入できる `pipx` でのインストールを推奨しています。
+Python環境を汚さずにCLIツールを導入できる `uv`や`pipx` でのインストールを推奨しています。
 
 ## 1. ツールのインストール
 以下のコマンドでGitHubから直接インストールできます。
+
+```bash
+uv tool install git+https://github.com/he1se1/kemomctr.git
+```
 
 ```bash
 pipx install git+https://github.com/he1se1/kemomctr.git
