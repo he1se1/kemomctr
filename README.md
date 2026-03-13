@@ -47,6 +47,8 @@ export GOOGLE_API_KEY="<YOUR_API_KEY>"
 </details>
 
 # 📄 使用方法
+引数を何もつけずに実行すると、GUIが立ち上がります。
+
 kemomctr は、翻訳を行う `tr` コマンドと、リソースパックを構築する `col` コマンドの2つの機能を持っています。
 
 ## 1. `tr` 翻訳モード
