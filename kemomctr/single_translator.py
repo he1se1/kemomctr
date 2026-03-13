@@ -3,6 +3,11 @@ import json
 import time
 from google.genai import types
 
+# --- 追加: GUIからの中断を検知・スレッドを追跡するためのグローバル変数 ---
+CANCEL_REQUESTED = False
+current_thread = None
+# -------------------------------------------------------------
+
 # 設定
 MODEL_NAME = os.getenv("KEMOMCTR_MODEL", "gemini-3-flash-preview")
 BATCH_SIZE = 30
@@ -93,6 +98,7 @@ def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, 
         return None
 
 def process_single_file(client, src_path_full, tgt_path_full, target_dir, source_lang, target_lang, glossary, translation_memory=None, no_sort=False):
+    global CANCEL_REQUESTED
     interrupted = False
     new_translations = {}
     existing_tgt_data = {}
@@ -121,7 +127,6 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
             except Exception:
                 pass
 
-        # 差分抽出
         missing_data = {k: v for k, v in source_data.items() if k not in existing_tgt_data}
         if not missing_data:
             return False
@@ -131,12 +136,10 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
 
         if translation_memory:
             for key, src_text in missing_data.items():
-                # 原文がメモリにあれば、その訳を採用
                 if src_text in translation_memory:
                     new_translations[key] = translation_memory[src_text]
                     tm_hit_count += 1
                 else:
-                    # なければAPI翻訳リストへ
                     final_missing_data[key] = src_text
         else:
             final_missing_data = missing_data
@@ -150,7 +153,6 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
         if final_missing_data:
             print(f"  -> API翻訳へ: {len(final_missing_data)}件")
             
-            # ▼▼▼ ソートのスキップ判定 ▼▼▼
             path_lower = src_path_full.lower()
             is_quest_path = "quest" in path_lower
             skip_sort = no_sort or is_quest_path
@@ -160,14 +162,10 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
             if skip_sort:
                 reason = "[--no-sort] 指定あり" if no_sort else "パスに 'quest' を検知"
                 print(f"  -> {reason}: 事前ソートを尊重し、元の順序でバッチ処理します")
-                
-                # 辞書の順序（事前ソート済みの順序）をそのままリスト化
                 items = list(final_missing_data.items())
                 for i in range(0, len(items), BATCH_SIZE):
                     chunks.append(dict(items[i:i + BATCH_SIZE]))
-                    
             else:
-                # ▼ 通常のMod向けのスマートバッチング（lang_sorter） ▼
                 from . import lang_sorter
                 key_clusters = lang_sorter.get_clustered_missing_keys(source_data, list(final_missing_data.keys()))
                 
@@ -192,12 +190,17 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
                         
                 if current_chunk:
                     chunks.append(current_chunk)
-                # ▲ ここまで ▲
             
             if chunks:
                 print(f"  -> 翻訳開始: {len(final_missing_data)}項目 / {len(chunks)}バッチ")
 
             for i, chunk in enumerate(chunks, 1):
+                # ▼ 追加: ループ毎にGUIからの中断リクエストをチェック ▼
+                if CANCEL_REQUESTED:
+                    print("\n  [!] GUIからの停止リクエストを検知。現在完了しているバッチまでのデータを保存して終了します...")
+                    interrupted = True
+                    break
+                
                 translated_chunk = translate_chunk(client, chunk, i, len(chunks), source_lang, target_lang, glossary)
                 if translated_chunk and isinstance(translated_chunk, dict):
                     new_translations.update(translated_chunk)
@@ -206,6 +209,7 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
                 time.sleep(1)
 
     except KeyboardInterrupt:
+        # CLI用の中断検知
         print("\n  [!] ユーザーによる中断を検知しました。現在完了しているバッチまでのデータを保存して終了します...")
         interrupted = True
     except Exception as e:

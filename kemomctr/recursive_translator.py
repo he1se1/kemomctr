@@ -90,8 +90,8 @@ def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary
                 
                 if interrupted:
                     print("\nプログラムを終了します。")
-                    sys.exit(0)
+                    return
                     
     except KeyboardInterrupt:
         print("\n[!] 探索中に中断されました。終了します。")
-        sys.exit(0)
+        return
