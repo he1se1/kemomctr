@@ -54,7 +54,7 @@ kemomctr は、翻訳を行う `tr` コマンドと、リソースパックを�
 
 基本コマンド
 ```Bash
-kemomctr tr /modpack/kubejs/assets/ -s en_us -t ja_jp -g path/to/glossary.csv
+kemomctr tr /path/to/lang/files -s en_us -t ja_jp -g path/to/glossary.csv
 ```
 オプション(すべて任意)
 - `-s` / `--source` : 翻訳元の言語コード (デフォルト: en_us)
