@@ -42,7 +42,7 @@ def load_glossary(csv_path, source_lang, target_lang):
         
     return glossary
 
-def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary_path=None, ref_dir=None):
+def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary_path=None, ref_dir=None, no_sort=False):
     if not API_KEY:
         print("エラー: 環境変数 GEMINI_KEY が設定されていません。")
         sys.exit(1)
@@ -84,7 +84,8 @@ def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary
                     source_lang=source_lang,
                     target_lang=target_lang,
                     glossary=glossary,
-                    translation_memory=translation_memory # ▼ 追加
+                    translation_memory=translation_memory,
+                    no_sort=no_sort
                 )
                 
                 if interrupted:

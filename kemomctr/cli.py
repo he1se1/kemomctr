@@ -25,6 +25,7 @@ def main():
     parser_tr.add_argument("-t", "--target", default="ja_jp", help="翻訳先の言語コード (デフォルト: ja_jp)")
     parser_tr.add_argument("-g", "--glossary", default=None, help="用語集CSVファイルのパス")
     parser_tr.add_argument("-r", "--ref", default=None, help="旧バージョンのディレクトリパス (翻訳を流用するために使用)")
+    parser_tr.add_argument("--no-sort", action="store_true", help="キーの自動ソートを無効化し、元の順序でバッチ処理します")
 
     # コマンド 2: col (collect)
     parser_col = subparsers.add_parser("col", help="翻訳済みのファイルを集約してリソースパックを作成します")
@@ -41,7 +42,7 @@ def main():
 
     # コマンドルーティング
     if args.command == "tr":
-        recursive_translator.run_recursive(args.directory, args.source, args.target, args.glossary, args.ref)
+        recursive_translator.run_recursive(args.directory, args.source, args.target, args.glossary, args.ref, args.no_sort)
     elif args.command == "col":
         pack_maker.run_pack_maker(args.source, args.dest, args.en, args.mc_version)
 

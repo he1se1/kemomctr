@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kemomctr"
-version = "0.1.0"
+version = "0.3.0"
 description = "Fast AI-powered Minecraft Mod localization tool using Gemini 3.0 Flash."
 readme = "README.md"
 requires-python = ">=3.9"

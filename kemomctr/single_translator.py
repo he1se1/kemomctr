@@ -92,7 +92,7 @@ def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, 
         print(f" 失敗: {e}")
         return None
 
-def process_single_file(client, src_path_full, tgt_path_full, target_dir, source_lang, target_lang, glossary, translation_memory=None):
+def process_single_file(client, src_path_full, tgt_path_full, target_dir, source_lang, target_lang, glossary, translation_memory=None, no_sort=False):
     interrupted = False
     new_translations = {}
     existing_tgt_data = {}
@@ -150,11 +150,52 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
         if final_missing_data:
             print(f"  -> API翻訳へ: {len(final_missing_data)}件")
             
-            items = list(final_missing_data.items())
-            chunks = [dict(items[i:i + BATCH_SIZE]) for i in range(0, len(items), BATCH_SIZE)]
+            # ▼▼▼ ソートのスキップ判定 ▼▼▼
+            path_lower = src_path_full.lower()
+            is_quest_path = "quest" in path_lower
+            skip_sort = no_sort or is_quest_path
+            
+            chunks = []
+            
+            if skip_sort:
+                reason = "[--no-sort] 指定あり" if no_sort else "パスに 'quest' を検知"
+                print(f"  -> {reason}: 事前ソートを尊重し、元の順序でバッチ処理します")
+                
+                # 辞書の順序（事前ソート済みの順序）をそのままリスト化
+                items = list(final_missing_data.items())
+                for i in range(0, len(items), BATCH_SIZE):
+                    chunks.append(dict(items[i:i + BATCH_SIZE]))
+                    
+            else:
+                # ▼ 通常のMod向けのスマートバッチング（lang_sorter） ▼
+                from . import lang_sorter
+                key_clusters = lang_sorter.get_clustered_missing_keys(source_data, list(final_missing_data.keys()))
+                
+                current_chunk = {}
+                for cluster_keys in key_clusters:
+                    if len(cluster_keys) > BATCH_SIZE:
+                        if current_chunk:
+                            chunks.append(current_chunk)
+                            current_chunk = {}
+                        for i in range(0, len(cluster_keys), BATCH_SIZE):
+                            sub_chunk = {k: final_missing_data[k] for k in cluster_keys[i:i + BATCH_SIZE]}
+                            chunks.append(sub_chunk)
+                        continue
+
+                    if len(current_chunk) + len(cluster_keys) > BATCH_SIZE:
+                        if current_chunk:
+                            chunks.append(current_chunk)
+                            current_chunk = {}
+                    
+                    for k in cluster_keys:
+                        current_chunk[k] = final_missing_data[k]
+                        
+                if current_chunk:
+                    chunks.append(current_chunk)
+                # ▲ ここまで ▲
             
             if chunks:
-                print(f"  -> 翻訳開始: {len(items)}項目 / {len(chunks)}バッチ")
+                print(f"  -> 翻訳開始: {len(final_missing_data)}項目 / {len(chunks)}バッチ")
 
             for i, chunk in enumerate(chunks, 1):
                 translated_chunk = translate_chunk(client, chunk, i, len(chunks), source_lang, target_lang, glossary)
