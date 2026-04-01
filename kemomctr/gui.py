@@ -5,6 +5,7 @@ import threading
 from . import recursive_translator
 from . import pack_maker
 from . import single_translator
+from . import glossary_maker
 
 def run_gui():
     root = tk.Tk()
@@ -34,6 +35,12 @@ def run_gui():
             entry.delete(0, tk.END)
             entry.insert(0, f)
 
+    def save_file(entry):
+        f = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv"), ("All files", "*.*")])
+        if f:
+            entry.delete(0, tk.END)
+            entry.insert(0, f)
+
     def create_input_row(parent, label, row, browse_type=None, default_val=""):
         ttk.Label(parent, text=label).grid(row=row, column=0, sticky="e", padx=5, pady=5)
         entry = ttk.Entry(parent, width=45)
@@ -45,6 +52,8 @@ def run_gui():
             ttk.Button(parent, text="参照", command=lambda: browse_dir(entry)).grid(row=row, column=2, padx=5)
         elif browse_type == "file":
             ttk.Button(parent, text="参照", command=lambda: browse_file(entry)).grid(row=row, column=2, padx=5)
+        elif browse_type == "save":
+            ttk.Button(parent, text="参照", command=lambda: save_file(entry)).grid(row=row, column=2, padx=5)
         return entry
 
     tr_dir = create_input_row(frame_tr, "対象ディレクトリ:", 0, "dir")
@@ -134,5 +143,45 @@ def run_gui():
 
     btn_col_run = ttk.Button(frame_col, text="パック生成を実行", command=execute_col)
     btn_col_run.grid(row=4, column=1, pady=15)
+
+    # --- 用語集生成 (glos) タブ ---
+    frame_glos = ttk.Frame(notebook)
+    notebook.add(frame_glos, text="用語集生成 (glos)")
+
+    glos_src_dir = create_input_row(frame_glos, "ソースディレクトリ(必須):", 0, "dir")
+    glos_tgt_dir = create_input_row(frame_glos, "ターゲットディレクトリ(任意):", 1, "dir")
+    glos_dst = create_input_row(frame_glos, "出力・追記先CSV:", 2, "save", default_val="glossary_generated.csv")
+    glos_src = create_input_row(frame_glos, "翻訳元言語:", 3, default_val="en_us")
+    glos_tgt = create_input_row(frame_glos, "翻訳先言語:", 4, default_val="ja_jp")
+
+    def execute_glos():
+        arg_src_dir = glos_src_dir.get()
+        arg_tgt_dir = glos_tgt_dir.get() or None
+        arg_dst = glos_dst.get() or "glossary_generated.csv"
+        arg_src = glos_src.get() or "en_us"
+        arg_tgt = glos_tgt.get() or "ja_jp"
+
+        if not arg_src_dir:
+            messagebox.showerror("エラー", "ソースディレクトリを指定してください。")
+            return
+
+        btn_glos_run.config(state="disabled")
+
+        def task():
+            try:
+                glossary_maker.run_glossary_maker(arg_src_dir, arg_tgt_dir, arg_dst, arg_src, arg_tgt)
+                messagebox.showinfo("完了", "用語集の生成・追記が完了しました。")
+            except Exception as e:
+                messagebox.showerror("エラー", f"処理中にエラーが発生しました:\n{e}")
+            finally:
+                try:
+                    btn_glos_run.config(state="normal")
+                except Exception:
+                    pass
+
+        threading.Thread(target=task, daemon=True).start()
+
+    btn_glos_run = ttk.Button(frame_glos, text="用語集生成を実行", command=execute_glos)
+    btn_glos_run.grid(row=5, column=1, pady=15)
 
     root.mainloop()

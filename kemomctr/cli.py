@@ -10,6 +10,7 @@ from . import gui
 from . import recursive_translator
 from . import pack_maker
 from . import single_translator
+from . import glossary_maker
 
 def run_app():
     if len(sys.argv) == 1:
@@ -38,6 +39,13 @@ def run_app():
     parser_col.add_argument("--en", action="store_true", help="en_us.json も一緒に収集・マージする場合は指定")
     parser_col.add_argument("-m", "--mc-version", default="1.20.1", help="対象のMinecraftバージョン(デフォルト: 1.20.1)")
 
+    parser_glos = subparsers.add_parser("glos", help="指定ディレクトリ以下を走査し、名詞句から用語集を作成します")
+    parser_glos.add_argument("src_dir", help="探索元のソースディレクトリパス")
+    parser_glos.add_argument("--tgt-dir", default=None, help="訳語を抽出するターゲットディレクトリパス（任意）")
+    parser_glos.add_argument("-o", "--output", default="glossary_generated.csv", help="出力・追記するCSVのパス")
+    parser_glos.add_argument("-s", "--source", default="en_us", help="翻訳元の言語コード (デフォルト: en_us)")
+    parser_glos.add_argument("-t", "--target", default="ja_jp", help="翻訳先の言語コード (デフォルト: ja_jp)")
+
     args = parser.parse_args()
 
     if args.command == "tr":
@@ -47,6 +55,10 @@ def run_app():
     elif args.command == "col":
         pack_maker.run_pack_maker(
             args.source, args.dest, args.en, args.mc_version
+        )
+    elif args.command == "glos":
+        glossary_maker.run_glossary_maker(
+            args.src_dir, args.tgt_dir, args.output, args.source, args.target
         )
 
 def main():

@@ -49,6 +49,17 @@ def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, 
     s_name = get_lang_name(source_lang)
     t_name = get_lang_name(target_lang)
 
+    # 用語集のフィルタリング（チャンク内のテキストに含まれる用語のみを抽出）
+    filtered_glossary = {}
+    if glossary:
+        chunk_text_lower = " ".join(str(v) for v in chunk_data.values()).lower()
+        for term, translation in glossary.items():
+            if term.lower() in chunk_text_lower:
+                filtered_glossary[term] = translation
+
+    if filtered_glossary:
+        print(f" (用語集ヒット: {len(filtered_glossary)}件)")
+
     system_instruction = f"""
     You are a professional translator for Minecraft Mods.
     Translate the JSON values from {s_name} to {t_name}.
@@ -65,7 +76,7 @@ def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, 
     4. Context: Modded Minecraft Gaming.
     
     # Glossary
-    {json.dumps(glossary, ensure_ascii=False)}
+    {json.dumps(filtered_glossary, ensure_ascii=False)}
     """
 
     prompt_text = f"""
