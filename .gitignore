@@ -6,6 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
+# GEMINI files
+GEMINI.md
+.gemini/
+.agent/
+
 # Distribution / packaging
 .Python
 build/
