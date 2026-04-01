@@ -12,9 +12,17 @@ def run_gui():
     root.title("kemomctr")
     root.geometry("600x400")
 
+    after_id = None
     def check_signals():
-        root.after(200, check_signals)
-    root.after(200, check_signals)
+        nonlocal after_id
+        after_id = root.after(200, check_signals)
+    check_signals()
+    
+    def on_closing():
+        if after_id:
+            root.after_cancel(after_id)
+        root.destroy()
+    root.protocol("WM_DELETE_WINDOW", on_closing)
 
     notebook = ttk.Notebook(root)
     notebook.pack(expand=True, fill="both", padx=10, pady=10)

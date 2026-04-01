@@ -7,16 +7,10 @@ import argparse
 import sys
 
 from . import gui
-from . import gui
 from . import recursive_translator
 from . import pack_maker
 from . import single_translator
 from . import glossary_maker
-
-def run_app():
-    if len(sys.argv) == 1:
-        gui.run_gui()
-        return
 
 def run_app():
     if len(sys.argv) == 1:
@@ -58,9 +52,6 @@ def run_app():
         recursive_translator.run_recursive(
             args.directory, args.source, args.target, args.glossary, args.ref, args.no_sort
         )
-        recursive_translator.run_recursive(
-            args.directory, args.source, args.target, args.glossary, args.ref, args.no_sort
-        )
     elif args.command == "col":
         pack_maker.run_pack_maker(
             args.source, args.dest, args.en, args.mc_version
@@ -73,7 +64,6 @@ def run_app():
 def main():
     try:
         run_app()
-        run_app()
     except KeyboardInterrupt:
         print("\n\n[!] 中断要求を受け付けました。安全に終了するため、データの保存を待機しています...")
         
@@ -85,20 +75,7 @@ def main():
             single_translator.current_thread.join(timeout=60.0)
             
         print("[!] 終了します。")
-        print("\n\n[!] 中断要求を受け付けました。安全に終了するため、データの保存を待機しています...")
-        
-        # 裏のスレッドに停止リクエストを送信
-        single_translator.CANCEL_REQUESTED = True
-        
-        # 翻訳スレッドが動いている場合は、キリの良いところで保存が終わるまで最大60秒待つ
-        if single_translator.current_thread and single_translator.current_thread.is_alive():
-            single_translator.current_thread.join(timeout=60.0)
-            
-        print("[!] 終了します。")
         sys.exit(0)
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()
