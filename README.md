@@ -47,6 +47,8 @@ export GOOGLE_API_KEY="<YOUR_API_KEY>"
 </details>
 
 # 📄 使用方法
+引数を何もつけずに実行すると、GUIが立ち上がります。
+
 kemomctr は、翻訳を行う `tr` コマンドと、リソースパックを構築する `col` コマンドの2つの機能を持っています。
 
 ## 1. `tr` 翻訳モード
@@ -54,13 +56,14 @@ kemomctr は、翻訳を行う `tr` コマンドと、リソースパックを�
 
 基本コマンド
 ```Bash
-kemomctr tr /modpack/kubejs/assets/ -s en_us -t ja_jp -g path/to/glossary.csv
+kemomctr tr /path/to/lang/files -s en_us -t ja_jp -g path/to/glossary.csv
 ```
 オプション(すべて任意)
 - `-s` / `--source` : 翻訳元の言語コード (デフォルト: en_us)
 - `-t` / `--target` : 翻訳先の言語コード (デフォルト: ja_jp)
 - `-g` / `--glossary` : 用語集のパス
 - `-r` / `--ref` : 旧バージョンのパス
+- `--no-sort` : このオプションを付けると、翻訳前にファイル内のキーの順番を変更しません。つけなくてもパスに`quest`を含むファイルはデフォルトで順番を変更しません。
 
 CSV形式の用語集を与えて訳語を指定することができます。  
 1行目に言語コードを記述し、それ以下に訳語の組を記述します。実行時はソースとターゲットに指定した言語のカラムのみが使われます。また各行について、どちらかの値が空欄ならそれは無視されます。  
