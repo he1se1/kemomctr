@@ -41,28 +41,29 @@ def create_mcmeta(dest_dir, pack_format):
     except Exception as e:
         print(f"  [エラー] pack.mcmeta の作成に失敗しました: {e}")
 
-def merge_json_files(src_path, dest_path):
+def merge_translation_files(src_path, dest_path, handler):
     try:
-        with open(dest_path, 'r', encoding='utf-8') as f:
-            dest_data = json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError):
-        print(f"  既存ファイルの読み込み失敗(または新規): {dest_path.name} -> 新規作成として扱います")
+        if dest_path.exists():
+            dest_data = handler.read(str(dest_path))
+        else:
+            dest_data = {}
+    except Exception:
+        print(f"  既存ファイルの読み込み失敗: {dest_path.name} -> 新規作成として扱います")
         dest_data = {}
 
     try:
-        with open(src_path, 'r', encoding='utf-8') as f:
-            src_data = json.load(f)
+        src_data = handler.read(str(src_path))
         
-        dest_data.update(src_data)
+        if src_data:
+            dest_data.update(src_data)
 
-        with open(dest_path, 'w', encoding='utf-8') as f:
-            json.dump(dest_data, f, indent=4, ensure_ascii=False)
+        handler.write(str(dest_path), dest_data)
         return True
     except Exception as e:
         print(f"  [マージ失敗] {src_path.name} の処理中にエラー: {e}")
         return False
 
-def process_file(source_file, src_root, dest_path_root):
+def process_file(source_file, src_root, dest_path_root, handler):
     path_parts = Path(source_file).parts
     try:
         if 'assets' in path_parts:
@@ -79,7 +80,7 @@ def process_file(source_file, src_root, dest_path_root):
     try:
         os.makedirs(target_dir, exist_ok=True)
         if target_file.exists():
-            success = merge_json_files(source_file, target_file)
+            success = merge_translation_files(source_file, target_file, handler)
             if success:
                 print(f"  [統合] {rel_path} (既存 + 新規)")
                 return 1
@@ -91,7 +92,7 @@ def process_file(source_file, src_root, dest_path_root):
         print(f"  [失敗] {source_file} の処理中にエラー: {e}")
     return 0
 
-def run_pack_maker(src_dir, dest_dir, include_en, mc_version):
+def run_pack_maker(src_dir, dest_dir, include_en, mc_version, format_id="json"):
     src_path = Path(src_dir)
     dest_path = Path(dest_dir)
 
@@ -101,18 +102,25 @@ def run_pack_maker(src_dir, dest_dir, include_en, mc_version):
         
     pack_format = get_pack_format(mc_version)
 
+    from . import format_handlers
+    handler = format_handlers.get_handler_by_id(format_id)
+    if not handler:
+        print(f"エラー: 非対応のフォーマット '{format_id}' が指定されました。")
+        return
+
     print(f"=== kemomctr: リソースパック構築モード (col) ===")
     print(f"収集元: {src_dir}\n保存先: {dest_dir}")
     print(f"指定バージョン: {mc_version} (pack_format: {pack_format})")
     print(f"英語ファイルの収集: {'有効' if include_en else '無効'}")
+    print(f"フォーマット: {format_id}")
 
     count = 0
     for root, dirs, files in os.walk(src_path):
-        if "ja_jp.json" in files:
-            count += process_file(Path(root) / "ja_jp.json", src_path, dest_path)
-
-        if include_en and "en_us.json" in files:
-            count += process_file(Path(root) / "en_us.json", src_path, dest_path)
+        for file in files:
+            if handler.is_source_file(file, "ja_jp"):
+                count += process_file(Path(root) / file, src_path, dest_path, handler)
+            elif include_en and handler.is_source_file(file, "en_us"):
+                count += process_file(Path(root) / file, src_path, dest_path, handler)
 
     print("-" * 30)
     print(f"完了: 合計 {count} 個のファイルを処理しました。")

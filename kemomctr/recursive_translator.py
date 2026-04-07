@@ -42,23 +42,27 @@ def load_glossary(csv_path, source_lang, target_lang):
         
     return glossary
 
-def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary_path=None, ref_dir=None, no_sort=False):
+def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary_path=None, ref_dir=None, no_sort=False, format_id="json", custom_system_instruction=None):
     if not API_KEY:
         print("エラー: 環境変数 GEMINI_KEY が設定されていません。")
         sys.exit(1)
 
     client = genai.Client(api_key=API_KEY)
     target_path = Path(target_dir)
-    source_filename = f"{source_lang}.json"
-    target_filename = f"{target_lang}.json"
 
     if not target_path.exists():
         print(f"エラー: ディレクトリが見つかりません: {target_dir}")
         return
 
+    from . import format_handlers
+    handler = format_handlers.get_handler_by_id(format_id)
+    if not handler:
+        print(f"エラー: 非対応のフォーマット '{format_id}' が指定されました。")
+        return
+
     print(f"=== kemomctr: 翻訳モード (tr) ===")
     print(f"探索: {target_dir}")
-    print(f"設定: {source_filename} -> {target_filename}")
+    print(f"設定: {source_lang} -> {target_lang} (フォーマット: {format_id})")
     
     glossary = load_glossary(glossary_path, source_lang, target_lang)
 
@@ -67,30 +71,34 @@ def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary
     if ref_dir:
         translation_memory = tm_manager.build_translation_memory(ref_dir, source_lang, target_lang)
 
-    print("ヒント: 実行中に Ctrl+C を押すと途中経過を保存して安全に終了します。")
-
     try:
         for root, dirs, files in os.walk(target_path):
-            if os.path.basename(root) == 'lang' and source_filename in files:
-                src_path_full = os.path.join(root, source_filename)
-                tgt_path_full = os.path.join(root, target_filename)
-                
-                # memory を渡す
-                interrupted = single_translator.process_single_file(
-                    client=client,
-                    src_path_full=src_path_full,
-                    tgt_path_full=tgt_path_full,
-                    target_dir=target_dir,
-                    source_lang=source_lang,
-                    target_lang=target_lang,
-                    glossary=glossary,
-                    translation_memory=translation_memory,
-                    no_sort=no_sort
-                )
-                
-                if interrupted:
-                    print("\nプログラムを終了します。")
-                    return
+            dirname = os.path.basename(root).lower()
+            if dirname == "lang":
+                for file in files:
+                    if handler.is_source_file(file, source_lang):
+                        src_path_full = os.path.join(root, file)
+                        target_filename = handler.get_target_filename(file, target_lang)
+                        tgt_path_full = os.path.join(root, target_filename)
+                        
+                        # memory を渡す
+                        interrupted = single_translator.process_single_file(
+                            client=client,
+                            src_path_full=src_path_full,
+                            tgt_path_full=tgt_path_full,
+                            target_dir=target_dir,
+                            source_lang=source_lang,
+                            target_lang=target_lang,
+                            glossary=glossary,
+                            translation_memory=translation_memory,
+                            no_sort=no_sort,
+                            handler=handler,
+                            custom_system_instruction=custom_system_instruction
+                        )
+                        
+                        if interrupted:
+                            print("\nプログラムを終了します。")
+                            return
                     
     except KeyboardInterrupt:
         print("\n[!] 探索中に中断されました。終了します。")

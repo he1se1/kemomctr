@@ -10,7 +10,8 @@ current_thread = None
 
 # 設定
 MODEL_NAME = os.getenv("KEMOMCTR_MODEL", "gemini-3-flash-preview")
-BATCH_SIZE = 30
+BATCH_SIZE = 50
+MAX_BATCH_CHARS = 3000
 
 LANG_NAME_MAP = {
     "en_us": "English", "ja_jp": "Japanese",
@@ -44,8 +45,21 @@ def normalize_response(result):
                     new_dict.update(item)
         return new_dict
     return None
+    
+def _clean_json_text(text):
+    """GeminiのレスポンスからMarkdown装飾などを取り除いて純粋なJSON文字列を返す"""
+    text = text.strip()
+    # Markdownのコードブロック(```json ... ```)を剥ぎ取る
+    if text.startswith("```"):
+        lines = text.splitlines()
+        # 最初の行が ```json や ``` の場合は飛ばす
+        start_idx = 1 if lines[0].startswith("```") else 0
+        # 最後の行が ``` の場合は飛ばす
+        end_idx = len(lines) - 1 if lines[-1].strip() == "```" else len(lines)
+        text = "\n".join(lines[start_idx:end_idx]).strip()
+    return text
 
-def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, target_lang, glossary):
+def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, target_lang, glossary, custom_system_instruction=None):
     s_name = get_lang_name(source_lang)
     t_name = get_lang_name(target_lang)
 
@@ -60,24 +74,32 @@ def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, 
     if filtered_glossary:
         print(f" (用語集ヒット: {len(filtered_glossary)}件)")
 
-    system_instruction = f"""
-    You are a professional translator for Minecraft Mods.
-    Translate the JSON values from {s_name} to {t_name}.
+    if custom_system_instruction:
+        system_instruction = custom_system_instruction
+        # プレースホルダ置換
+        system_instruction = system_instruction.replace("{{s_name}}", s_name)
+        system_instruction = system_instruction.replace("{{t_name}}", t_name)
+        system_instruction = system_instruction.replace("{{glossary}}", json.dumps(filtered_glossary, ensure_ascii=False))
+    else:
+        system_instruction = f"""
+        You are a professional translator for Minecraft Mods.
+        Translate the JSON values from {s_name} to {t_name}.
 
-    # Output Format Rules
-    1. Output strictly a FLAT JSON Object: {{ "original_key": "translated_value" }}.
-    2. Do NOT use a list or array.
-    3. Do NOT wrap the result in keys like "translations".
+        # Output Format Rules
+        1. Output strictly a FLAT JSON Object: {{ "original_key": "translated_value" }}.
+        2. Do NOT use a list or array.
+        3. Do NOT wrap the result in keys like "translations".
 
-    # Translation Rules
-    1. Preserve format specifiers exactly (%s, %d, %.1f).
-    2. Do NOT translate technical keys.
-    3. Use the Glossary provided below.
-    4. Context: Modded Minecraft Gaming.
-    
-    # Glossary
-    {json.dumps(filtered_glossary, ensure_ascii=False)}
-    """
+        # Translation Rules
+        1. Preserve format specifiers exactly (%s, %d, %.1f).
+        2. Do NOT translate technical keys.
+        3. Use the Glossary provided below.
+        4. Context: Modded Minecraft Gaming.
+        5. Multi-line Handling: If the value contains newlines (\n), treat it as a single cohesive text. Preserve the number of lines and the positions of empty lines in the translation.
+        
+        # Glossary
+        {json.dumps(filtered_glossary, ensure_ascii=False)}
+        """
 
     prompt_text = f"""
     Translate these entries:
@@ -85,7 +107,7 @@ def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, 
     """
 
     try:
-        print(f"    - Batch {chunk_index}/{total_chunks} (約{len(chunk_data)}行) 処理中...", end="", flush=True)
+        print(f"    - Batch {chunk_index}/{total_chunks} ({len(chunk_data)}項目) 処理中...", end="", flush=True)
         response = client.models.generate_content(
             model=MODEL_NAME,
             contents=prompt_text,
@@ -95,20 +117,41 @@ def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, 
                 temperature=0.1
             )
         )
-        raw_result = json.loads(response.text)
+        
+        text = _clean_json_text(response.text)
+        try:
+            raw_result = json.loads(text)
+        except json.JSONDecodeError as je:
+            raise ValueError(f"JSONパースエラー: {je}")
+            
         final_dict = normalize_response(raw_result)
-
         if not final_dict:
-            print(" [エラー: データ抽出失敗]")
-            return None
+            raise ValueError("データ抽出失敗 (形式不正)")
         
         print(" OK")
         return final_dict
+        
     except Exception as e:
-        print(f" 失敗: {e}")
-        return None
+        # 動的なバッチ分割リトライ案
+        if len(chunk_data) > 1:
+            print(f" -> エラー発生({e})。バッチを分割して再試行します... (サイズ: {len(chunk_data)} -> {len(chunk_data)//2})")
+            items = list(chunk_data.items())
+            mid = len(items) // 2
+            chunk1 = dict(items[:mid])
+            chunk2 = dict(items[mid:])
+            
+            res1 = translate_chunk(client, chunk1, chunk_index, total_chunks, source_lang, target_lang, glossary, custom_system_instruction)
+            res2 = translate_chunk(client, chunk2, chunk_index, total_chunks, source_lang, target_lang, glossary, custom_system_instruction)
+            
+            combined = {}
+            if res1: combined.update(res1)
+            if res2: combined.update(res2)
+            return combined
+        else:
+            print(f" 失敗: {e}")
+            return None
 
-def process_single_file(client, src_path_full, tgt_path_full, target_dir, source_lang, target_lang, glossary, translation_memory=None, no_sort=False):
+def process_single_file(client, src_path_full, tgt_path_full, target_dir, source_lang, target_lang, glossary, translation_memory=None, no_sort=False, handler=None, custom_system_instruction=None):
     global CANCEL_REQUESTED
     interrupted = False
     new_translations = {}
@@ -121,15 +164,13 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
     print(f"\n[{rel_path}]")
 
     try:
-        with open(src_path_full, 'r', encoding='utf-8') as f:
-            source_data = json.load(f)
-        if not isinstance(source_data, dict):
+        source_data = handler.read(src_path_full) if handler else {}
+        if not source_data:
             return False
 
         if os.path.exists(tgt_path_full):
             try:
-                with open(tgt_path_full, 'r', encoding='utf-8') as f:
-                    loaded_data = json.load(f)
+                loaded_data = handler.read(tgt_path_full) if handler else {}
                 if isinstance(loaded_data, list):
                     print(f"  [修復] {os.path.basename(tgt_path_full)} がリスト形式でした。辞書形式にリセットします。")
                     existing_tgt_data = {} 
@@ -173,31 +214,38 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
             if skip_sort:
                 reason = "[--no-sort] 指定あり" if no_sort else "パスに 'quest' を検知"
                 print(f"  -> {reason}: 事前ソートを尊重し、元の順序でバッチ処理します")
+                
                 items = list(final_missing_data.items())
-                for i in range(0, len(items), BATCH_SIZE):
-                    chunks.append(dict(items[i:i + BATCH_SIZE]))
+                current_chunk = {}
+                current_chars = 0
+                for k, v in items:
+                    v_len = len(str(v))
+                    if (len(current_chunk) >= BATCH_SIZE) or (current_chunk and current_chars + v_len > MAX_BATCH_CHARS):
+                        chunks.append(current_chunk)
+                        current_chunk = {}
+                        current_chars = 0
+                    current_chunk[k] = v
+                    current_chars += v_len
+                if current_chunk:
+                    chunks.append(current_chunk)
             else:
                 from . import lang_sorter
                 key_clusters = lang_sorter.get_clustered_missing_keys(source_data, list(final_missing_data.keys()))
                 
                 current_chunk = {}
+                current_chars = 0
                 for cluster_keys in key_clusters:
-                    if len(cluster_keys) > BATCH_SIZE:
-                        if current_chunk:
-                            chunks.append(current_chunk)
-                            current_chunk = {}
-                        for i in range(0, len(cluster_keys), BATCH_SIZE):
-                            sub_chunk = {k: final_missing_data[k] for k in cluster_keys[i:i + BATCH_SIZE]}
-                            chunks.append(sub_chunk)
-                        continue
-
-                    if len(current_chunk) + len(cluster_keys) > BATCH_SIZE:
-                        if current_chunk:
-                            chunks.append(current_chunk)
-                            current_chunk = {}
-                    
                     for k in cluster_keys:
-                        current_chunk[k] = final_missing_data[k]
+                        v = final_missing_data[k]
+                        v_len = len(str(v))
+                        
+                        if (len(current_chunk) >= BATCH_SIZE) or (current_chunk and current_chars + v_len > MAX_BATCH_CHARS):
+                            chunks.append(current_chunk)
+                            current_chunk = {}
+                            current_chars = 0
+                            
+                        current_chunk[k] = v
+                        current_chars += v_len
                         
                 if current_chunk:
                     chunks.append(current_chunk)
@@ -212,7 +260,7 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
                     interrupted = True
                     break
                 
-                translated_chunk = translate_chunk(client, chunk, i, len(chunks), source_lang, target_lang, glossary)
+                translated_chunk = translate_chunk(client, chunk, i, len(chunks), source_lang, target_lang, glossary, custom_system_instruction)
                 if translated_chunk and isinstance(translated_chunk, dict):
                     new_translations.update(translated_chunk)
                 else:
@@ -231,8 +279,11 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
         existing_tgt_data.update(new_translations)
         temp_file = f"{tgt_path_full}.tmp"
         try:
-            with open(temp_file, 'w', encoding='utf-8') as f:
-                json.dump(existing_tgt_data, f, ensure_ascii=False, indent=4)
+            if handler:
+                handler.write(temp_file, existing_tgt_data)
+            else:
+                with open(temp_file, 'w', encoding='utf-8') as f:
+                    json.dump(existing_tgt_data, f, ensure_ascii=False, indent=4)
             os.replace(temp_file, tgt_path_full)
             
             count_text = f" (中断により途中まで)" if interrupted else ""

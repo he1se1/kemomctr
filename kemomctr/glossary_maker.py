@@ -57,12 +57,15 @@ def update_or_add_row(glossary_rows, src_lang, src_text, tgt_lang, tgt_text):
     glossary_rows.append(new_row)
     return False, True
 
-def run_glossary_maker(src_dir, tgt_dir, output_csv, source_lang="en_us", target_lang="ja_jp"):
+def run_glossary_maker(src_dir, tgt_dir, output_csv, source_lang="en_us", target_lang="ja_jp", format_id="json"):
     src_path = Path(src_dir)
     tgt_path = Path(tgt_dir) if tgt_dir else None
     
-    source_filename = f"{source_lang}.json"
-    target_filename = f"{target_lang}.json"
+    from . import format_handlers
+    handler = format_handlers.get_handler_by_id(format_id)
+    if not handler:
+        print(f"エラー: 非対応のフォーマット '{format_id}' が指定されました。")
+        return
 
     if not src_path.exists():
         print(f"エラー: ソースディレクトリが見つかりません: {src_dir}")
@@ -75,7 +78,7 @@ def run_glossary_maker(src_dir, tgt_dir, output_csv, source_lang="en_us", target
     print(f"ソース探索: {src_dir}")
     if tgt_dir:
         print(f"ターゲット探索: {tgt_dir}")
-    print(f"抽出元: {source_filename} (キー接頭辞ベース)")
+    print(f"抽出フォーマット: {format_id} (キー接頭辞ベース)")
     
     # 既存のものがあれば読み込む
     glossary_rows, fieldnames = load_existing_glossary(output_csv)
@@ -94,42 +97,42 @@ def run_glossary_maker(src_dir, tgt_dir, output_csv, source_lang="en_us", target
     updated_count = 0
     
     for root, dirs, files in os.walk(src_path):
-        if source_filename in files:
-            src_full = os.path.join(root, source_filename)
-            rel_path = os.path.relpath(root, src_dir)
-            
-            try:
-                with open(src_full, 'r', encoding='utf-8') as f:
-                    src_data = json.load(f)
+        for file in files:
+            if handler.is_source_file(file, source_lang):
+                src_full = os.path.join(root, file)
+                rel_path = os.path.relpath(root, src_dir)
                 
-                tgt_data = {}
-                if tgt_path and tgt_path.exists():
-                    tgt_full = os.path.join(tgt_path, rel_path, target_filename)
-                    if os.path.exists(tgt_full):
-                        try:
-                            with open(tgt_full, 'r', encoding='utf-8') as f:
-                                data = json.load(f)
-                            if isinstance(data, dict):
-                                tgt_data = data
-                        except Exception:
-                            pass
-                
-                if not isinstance(src_data, dict):
-                    continue
+                try:
+                    src_data = handler.read(src_full)
+                    
+                    tgt_data = {}
+                    if tgt_path and tgt_path.exists():
+                        target_filename = handler.get_target_filename(file, target_lang)
+                        tgt_full = os.path.join(tgt_path, rel_path, target_filename)
+                        if os.path.exists(tgt_full):
+                            try:
+                                data = handler.read(tgt_full)
+                                if isinstance(data, dict):
+                                    tgt_data = data
+                            except Exception:
+                                pass
+                    
+                    if not isinstance(src_data, dict):
+                        continue
 
-                for key, src_text in src_data.items():
-                    if isinstance(key, str) and key.startswith(NOUN_PREFIXES):
-                        tgt_text = tgt_data.get(key, "")
-                        
-                        updated, added = update_or_add_row(glossary_rows, source_lang, src_text, target_lang, tgt_text)
-                        if updated:
-                            updated_count += 1
-                        if added:
-                            added_count += 1
+                    for key, src_text in src_data.items():
+                        if isinstance(key, str) and key.startswith(NOUN_PREFIXES):
+                            tgt_text = tgt_data.get(key, "")
+                            
+                            updated, added = update_or_add_row(glossary_rows, source_lang, src_text, target_lang, tgt_text)
+                            if updated:
+                                updated_count += 1
+                            if added:
+                                added_count += 1
 
-                file_count += 1
-            except Exception as e:
-                print(f"[警告] ファイル読み込みエラー ({src_full}): {e}")
+                    file_count += 1
+                except Exception as e:
+                    print(f"[警告] ファイル読み込みエラー ({src_full}): {e}")
 
     print(f"  -> {file_count}個のファイルから走査完了。新規行追加: {added_count}件, 既存行への多言語追記: {updated_count}件")
 
