@@ -1,36 +1,57 @@
+"""
+フォーマットハンドラ・モジュール
+JSON, SNBT, .lang 各形式の読み書きと判定を抽象化する
+"""
+
 import json
 import os
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 class BaseFormatHandler(ABC):
+    """
+    全てのフォーマットハンドラの基底クラス。
+    新しいフォーマットを追加する場合は、このクラスを継承する。
+    """
     format_id: str = ""
 
     @classmethod
     @abstractmethod
     def is_source_file(cls, filename: str, source_lang: str) -> bool:
-        """このフォーマットのソースファイルとして妥当か判定する (例: en_us.json かどうか)"""
+        """
+        ファイル名が指定された言語のソースファイルであるか判定する
+        例: en_us.json かどうか
+        """
         pass
 
     @classmethod
     @abstractmethod
     def get_target_filename(cls, filename: str, target_lang: str) -> str:
-        """ターゲットのファイル名を生成する (例: en_us.json -> ja_jp.json)"""
+        """
+        翻訳先のファイル名を生成する
+        例: en_us.json -> ja_jp.json
+        """
         pass
 
     @classmethod
     @abstractmethod
     def read(cls, filepath: str) -> Dict[str, str]:
-        """ファイルを読み込み、Key-Value 辞書を返す。失敗時や非対応構造の場合は ValueError などを発生させるか空辞書を返す。"""
+        """
+        ファイルを読み込み、Key-Value形式の辞書を返す。
+        失敗した場合は空の辞書を返す。
+        """
         pass
 
     @classmethod
     @abstractmethod
     def write(cls, filepath: str, data: Dict[str, str]):
-        """辞書データを元のフォーマット形式に従って書き出す"""
+        """
+        辞書データを対応するフォーマットで書き出す。
+        """
         pass
 
 class JsonFormatHandler(BaseFormatHandler):
+    """標準的なJSON形式のMod言語ファイルを扱う"""
     format_id = "json"
 
     @classmethod
@@ -39,7 +60,6 @@ class JsonFormatHandler(BaseFormatHandler):
 
     @classmethod
     def get_target_filename(cls, filename: str, target_lang: str) -> str:
-        # JSONの場合は常に {target_lang}.json とする
         return f"{target_lang}.json"
 
     @classmethod
@@ -61,6 +81,7 @@ class JsonFormatHandler(BaseFormatHandler):
             json.dump(data, f, ensure_ascii=False, indent=4)
 
 class SnbtFormatHandler(BaseFormatHandler):
+    """FTB Quest等で使用されるSNBT形式のファイルを扱う"""
     format_id = "snbt"
 
     @classmethod
@@ -84,22 +105,21 @@ class SnbtFormatHandler(BaseFormatHandler):
             if isinstance(snbt_data, slib.Compound):
                 for k, v in snbt_data.items():
                     if isinstance(v, slib.List):
-                        # 文字列のリストなら1つずつ""で囲み、改行で結合
+                        # SNBTのリスト(改行区切り)を読み込み
                         lines = [f'\"{item}\"' for item in v]
                         data[k] = "\n".join(lines)
                     else:
-                        # 単体のタグ（String, Intなど）は文字列化
                         data[k] = str(v)
             return data
         except Exception as e:
-            print(f"  [SnbtFormatHandler] Read Error: {e}")
+            print(f"  [SnbtFormatHandler] 読み込みエラー: {e}")
             return {}
 
     @classmethod
     def write(cls, filepath: str, data: Dict[str, str]):
         import ftb_snbt_lib as slib
         
-        # 既存内容があれば型合わせを試みる
+        # 既存ファイルのメタデータを保持するため、一度読み込みを試みる
         snbt_data = slib.Compound({})
         if os.path.exists(filepath):
             try:
@@ -110,39 +130,39 @@ class SnbtFormatHandler(BaseFormatHandler):
 
         for k, v in data.items():
             if "\n" in v:
-                # 改行が含まれる場合は SNBT のリスト ([]) として保存
+                # 改行が含まれる場合は SNBT のリスト形式 ([]) に変換
                 lines = v.split("\n")
                 cleaned_lines = []
                 for line in lines:
                     line = line.strip()
-                    # 前後の引用符を最大1つずつ剥ぎ取る (read時に付加された可能性があるため)
+                    # 読み込み時に付加した可能性のある引用符を除去
                     if len(line) >= 2 and line.startswith('"') and line.endswith('"'):
                         line = line[1:-1]
                     cleaned_lines.append(line)
                 snbt_data[k] = slib.List([slib.String(l) for l in cleaned_lines])
             else:
-                # 単一文字列。こちらも念のため前後の引用符を剥ぎ取る
+                # 単一の文字列値
                 val = v.strip()
                 if len(val) >= 2 and val.startswith('"') and val.endswith('"'):
                     val = val[1:-1]
                 snbt_data[k] = slib.String(val)
         
         with open(filepath, 'w', encoding='utf-8') as f:
-            # FTB SNBT 形式 (改行区切り) で書き出し
+            # FTB SNBT 形式(カンマなし・改行あり)で出力
             slib.dump(snbt_data, f, comma_sep=False)
 
 class LangFormatHandler(BaseFormatHandler):
+    """Minecraft 舊バージョンの .lang 形式(key=value)を扱う"""
     format_id = "lang"
 
     @classmethod
     def is_source_file(cls, filename: str, source_lang: str) -> bool:
-        # 古いバージョンでは en_US.lang のような大文字小文字が混在することがあるが、
-        # 引数 source_lang (例: en_us) に合わせて柔軟に判定する。
+        # 大文字小文字の差異を許容する (en_us.lang vs en_US.lang)
         return filename.lower() == f"{source_lang.lower()}.lang"
 
     @classmethod
     def get_target_filename(cls, filename: str, target_lang: str) -> str:
-        # 一般にlangフォーマットでは国コード部分を大文字にする (ja_JP.lang)
+        # .lang形式では慣習的に国コードを大文字にする
         parts = target_lang.split('_')
         if len(parts) == 2:
             return f"{parts[0]}_{parts[1].upper()}.lang"
@@ -157,6 +177,7 @@ class LangFormatHandler(BaseFormatHandler):
             with open(filepath, 'r', encoding='utf-8') as f:
                 for line in f:
                     line = line.strip()
+                    # 空行やコメント行をスキップ
                     if not line or line.startswith('#'):
                         continue
                     if '=' in line:
@@ -172,7 +193,7 @@ class LangFormatHandler(BaseFormatHandler):
             for k, v in data.items():
                 f.write(f"{k}={v}\n")
 
-# 使用可能な全ハンドラーのリスト
+# 定義済みの全ハンドラのリスト
 _HANDLERS = [
     JsonFormatHandler,
     SnbtFormatHandler,
@@ -180,11 +201,12 @@ _HANDLERS = [
 ]
 
 def get_handler_by_id(format_id: str) -> Optional[BaseFormatHandler]:
-    """指定されたフォーマットIDに合致するハンドラーを探して返す"""
+    """フォーマットIDに対応するハンドラー実体を返す"""
     for handler in _HANDLERS:
         if getattr(handler, "format_id", "") == format_id.lower():
             return handler
     return None
 
-def get_supported_formats() -> list[str]:
+def get_supported_formats() -> List[str]:
+    """サポートされている全フォーマットIDのリストを返す"""
     return [h.format_id for h in _HANDLERS]
