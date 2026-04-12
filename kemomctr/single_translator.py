@@ -15,7 +15,7 @@ current_thread = None
 # 翻訳設定
 MODEL_NAME = os.getenv("KEMOMCTR_MODEL", "gemini-3-flash-preview")
 BATCH_SIZE = 50          # 1リクエストあたりの最大キー数
-MAX_BATCH_CHARS = 3000   # 1リクエストあたりの最大文字数
+MAX_BATCH_CHARS = 2500   # 1リクエストあたりの最大文字数
 
 # 言語コードと表示名のマッピング
 LANG_NAME_MAP = {
