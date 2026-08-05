@@ -5,22 +5,51 @@
 AI-driven Minecraft Mod translator featuring recursive search, glossary support, and resume functionality via Gemini. Supports MC1.13-1.20.  
 MinecraftのModのAI翻訳ツール。翻訳対象ファイルを探索しての翻訳が可能。Geminiを使用。Minecraft バージョン1.13から1.20までに対応。
 
+> [!TIP]
+> 🔰 **はじめての方・操作に不慣れな方へ**  
+> インストールから使い方までの解説 ➡️ **[初心者向けガイド (README_GUIDE.md)](README_GUIDE.md)** をご覧ください！
+
 # 📥 セットアップ
 
-Python環境を汚さずにCLIツールを導入できる `uv`や`pipx` でのインストールを推奨しています。
+Python環境を汚さずにCLIツールを導入できる `uv`でのインストールを推奨しています。
 
-## 1. ツールのインストール
+## 1. uv のインストール
+まだ `uv` がインストールされていない場合は、以下のコマンドで導入できます。
+
+**Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**macOS / Linux:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+## 2. ツールのインストール
 以下のコマンドでGitHubから直接インストールできます。
 
 ```bash
 uv tool install git+https://github.com/he1se1/kemomctr.git
 ```
 
+*(または `pipx install git+https://github.com/he1se1/kemomctr.git` でも可能)*
+
+### 開発環境のセットアップ (uv)
+リポジトリをクローンしてローカルで実行・開発する場合：
+
 ```bash
-pipx install git+https://github.com/he1se1/kemomctr.git
+# 依存関係の同期
+uv sync
+
+# GUI起動
+uv run kemomctr
+
+# CLIコマンド実行
+uv run kemomctr tr /path/to/lang -s en_us -t ja_jp
 ```
 
-## 2. 環境変数の設定
+## 3. 環境変数の設定
 翻訳にはGoogle GeminiのAPIキーが必要です。環境変数 `GOOGLE_API_KEY` に取得したAPIキーを設定してください。
 
 環境変数`KEMOMCTR_MODEL`で使用するモデルを指定できます。デフォルト値は`gemini-3.5-flash-lite`です。

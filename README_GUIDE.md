@@ -1,0 +1,79 @@
+# 🔰 kemomctr 初心者向けガイド
+
+Minecraft ModをAI（Gemini）で簡単に日本語翻訳できるツール **`kemomctr`** へようこそ！  
+このガイドでは、パソコンの操作やコマンドがよく分からない方でも迷わず使えるように、**ツールのインストールから使い方まで**をステップ順に解説します。
+
+---
+
+## 🔑 1. 準備：Google APIキーを取得する（無料）
+
+このツールは Google の AI（Gemini）を使用するため、**Google APIキー（無料）** が必要です。
+
+1. [Google AI Studio](https://aistudio.google.com/app/apikey) にアクセスします。
+2. Googleアカウントでログインし、**「Create API key」** ボタンを押してキーを発行します。
+3. 発行された長い文字列（APIキー）をコピーしておきます。
+
+### APIキーをパソコンに設定する（Windowsの場合）
+1. キーボードの `Win` + `R` キーを押し、`sysdm.cpl` と入力して Enter を押します。
+2. 「詳細設定」タブ ＞ 一番下の **「環境変数(N)...」** をクリックします。
+3. 「ユーザー環境変数」の **「新規(N)...」** をクリックします。
+4. 以下のように入力して「OK」を押します。
+   - **変数名**: `GOOGLE_API_KEY`
+   - **変数値**: 先ほどコピーしたAPIキー
+
+---
+
+## 📥 2. インストール手順
+
+このツールを使うために、Python高速管理ツール `uv` を入れてから `kemomctr` をインストールします。
+
+### ステップ A: `uv` をインストールする
+
+キーボードの `Win` キーを押し、「PowerShell」と入力して **PowerShell** を開きます。  
+以下のコマンドをコピーして貼り付け、Enter を押してください。
+
+**Windows (PowerShell) の場合:**
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**macOS / Linux の場合:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+### ステップ B: `kemomctr` をインストールする
+
+PowerShell（またはターミナル）に以下のコマンドをコピー＆ペーストして Enter を押します。
+
+```bash
+uv tool install git+https://github.com/he1se1/kemomctr.git
+```
+
+これでインストールの準備は完了です！
+
+---
+
+## 🚀 3. かんたん使い方手順
+
+### ステップ 1： アプリを起動する
+PowerShell や ターミナルで、以下のように打ち込んで Enter を押します。
+
+```bash
+kemomctr
+```
+
+画面（GUI）が立ち上がります。
+
+### ステップ 2： 翻訳したいModのフォルダを指定する
+1. 翻訳したいModの言語ファイルが入っているフォルダ（例: `kubejs/assets/modid/lang` や解凍したフォルダ）を探します。
+2. そのフォルダを画面の **「対象ディレクトリ」** の枠に**ドラッグ＆ドロップ**します。（「参照」ボタンから選んでもOKです）
+
+### ステップ 3： 翻訳を実行する
+1. **「翻訳を実行」** ボタンを押します。
+2. AIが自動で翻訳を開始します。
+3. 画面に「完了」のメッセージが出たら成功です！同じフォルダに日本語ファイル（`ja_jp.json`）が作成されています。
+
+---
+
+さらに詳しい設定やコマンドラインからの使い方は [README.md](README.md) をご覧ください！
