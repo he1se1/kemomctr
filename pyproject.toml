@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kemomctr"
-version = "0.4.0"
+version = "0.5.0"
 description = "Fast AI-powered Minecraft Mod localization tool using Gemini 3.0 Flash."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -13,7 +13,8 @@ authors = [
     {name = "kemo", email = "90456661+he1se1@users.noreply.github.com"}
 ]
 dependencies = [
-    "google-genai>=1.0.0"
+    "google-genai>=1.0.0",
+    "PyQt6>=6.5.0"
 ]
 
 [project.scripts]

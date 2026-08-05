@@ -11,7 +11,7 @@ GEMINI.md
 .gemini/
 .agent/
 
-# uv files
+# uv file
 uv.lock
 
 # generated files
