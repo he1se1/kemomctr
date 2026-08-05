@@ -11,6 +11,12 @@ GEMINI.md
 .gemini/
 .agent/
 
+# uv files
+uv.lock
+
+# generated files
+glossary_generated.csv
+
 # Distribution / packaging
 .Python
 build/

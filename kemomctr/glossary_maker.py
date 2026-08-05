@@ -118,7 +118,7 @@ def run_glossary_maker(src_dir, tgt_dir, output_csv, source_lang="en_us", target
                     continue
 
                 for key, src_text in src_data.items():
-                    if isinstance(key, str) and key.startswith(NOUN_PREFIXES):
+                    if isinstance(key, str) and key.startswith(NOUN_PREFIXES) and "description" not in key:
                         tgt_text = tgt_data.get(key, "")
                         
                         updated, added = update_or_add_row(glossary_rows, source_lang, src_text, target_lang, tgt_text)

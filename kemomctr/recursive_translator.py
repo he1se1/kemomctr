@@ -42,7 +42,7 @@ def load_glossary(csv_path, source_lang, target_lang):
         
     return glossary
 
-def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary_path=None, ref_dir=None, no_sort=False):
+def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary_path=None, ref_dir=None, no_sort=False, flex=False):
     if not API_KEY:
         print("エラー: 環境変数 GOOGLE_API_KEY が設定されていません。")
         sys.exit(1)
@@ -59,6 +59,8 @@ def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary
     print(f"=== kemomctr: 翻訳モード (tr) ===")
     print(f"探索先: {target_dir}")
     print(f"設定: {source_filename} -> {target_filename}")
+    if flex:
+        print("オプション: Flexモード (service_tier=flex) 有効")
     
     glossary = load_glossary(glossary_path, source_lang, target_lang)
 
@@ -87,7 +89,8 @@ def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary
                     target_lang=target_lang,
                     glossary=glossary,
                     translation_memory=translation_memory,
-                    no_sort=no_sort
+                    no_sort=no_sort,
+                    flex=flex
                 )
                 if interrupted:
                     print("\nプログラムを終了します。")
@@ -111,7 +114,8 @@ def run_recursive(target_dir, source_lang="en_us", target_lang="ja_jp", glossary
                         target_lang=target_lang,
                         glossary=glossary,
                         translation_memory=translation_memory,
-                        no_sort=no_sort
+                        no_sort=no_sort,
+                        flex=flex
                     )
                     
                     processed_count += 1

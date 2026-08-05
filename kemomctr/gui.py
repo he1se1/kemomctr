@@ -70,7 +70,9 @@ def run_gui():
     tr_gls = create_input_row(frame_tr, "用語集CSV(任意):", 3, "file")
     tr_ref = create_input_row(frame_tr, "旧Verディレクトリ(任意):", 4, "dir")
     tr_no_sort_var = tk.BooleanVar()
-    ttk.Checkbutton(frame_tr, text="キーの自動ソートを無効化 (--no-sort)", variable=tr_no_sort_var).grid(row=5, column=1, sticky="w", pady=5)
+    ttk.Checkbutton(frame_tr, text="キーの自動ソートを無効化 (--no-sort)", variable=tr_no_sort_var).grid(row=5, column=1, sticky="w", pady=2)
+    tr_flex_var = tk.BooleanVar()
+    ttk.Checkbutton(frame_tr, text="Flexモードでリクエスト (--flex)", variable=tr_flex_var).grid(row=6, column=1, sticky="w", pady=2)
 
     def execute_tr():
         arg_dir = tr_dir.get()
@@ -79,6 +81,7 @@ def run_gui():
         arg_gls = tr_gls.get() or None
         arg_ref = tr_ref.get() or None
         arg_no_sort = tr_no_sort_var.get()
+        arg_flex = tr_flex_var.get()
 
         if not arg_dir:
             messagebox.showerror("エラー", "対象ディレクトリを指定してください。")
@@ -90,7 +93,7 @@ def run_gui():
             try:
                 single_translator.CANCEL_REQUESTED = False
                 recursive_translator.run_recursive(
-                    arg_dir, arg_src, arg_tgt, arg_gls, arg_ref, arg_no_sort
+                    arg_dir, arg_src, arg_tgt, arg_gls, arg_ref, arg_no_sort, arg_flex
                 )
                 if not single_translator.CANCEL_REQUESTED:
                     messagebox.showinfo("完了", "翻訳処理が完了しました。")
@@ -109,7 +112,7 @@ def run_gui():
         t.start()
 
     btn_tr_run = ttk.Button(frame_tr, text="翻訳を実行", command=execute_tr)
-    btn_tr_run.grid(row=6, column=1, pady=15)
+    btn_tr_run.grid(row=7, column=1, pady=15)
 
     # --- 収集 (col) タブ ---
     frame_col = ttk.Frame(notebook)
@@ -156,11 +159,11 @@ def run_gui():
     frame_glos = ttk.Frame(notebook)
     notebook.add(frame_glos, text="用語集生成 (glos)")
 
-    glos_src_dir = create_input_row(frame_glos, "ソースディレクトリ(必須):", 0, "dir")
-    glos_tgt_dir = create_input_row(frame_glos, "ターゲットディレクトリ(任意):", 1, "dir")
+    glos_src_dir = create_input_row(frame_glos, "原語側のフォルダ(必須):", 0, "dir")
+    glos_tgt_dir = create_input_row(frame_glos, "訳語側のフォルダ(任意):", 1, "dir")
     glos_dst = create_input_row(frame_glos, "出力・追記先CSV:", 2, "save", default_val="glossary_generated.csv")
-    glos_src = create_input_row(frame_glos, "翻訳元言語:", 3, default_val="en_us")
-    glos_tgt = create_input_row(frame_glos, "翻訳先言語:", 4, default_val="ja_jp")
+    glos_src = create_input_row(frame_glos, "原語の言語コード:", 3, default_val="en_us")
+    glos_tgt = create_input_row(frame_glos, "訳語の言語コード:", 4, default_val="ja_jp")
 
     def execute_glos():
         arg_src_dir = glos_src_dir.get()

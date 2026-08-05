@@ -32,6 +32,7 @@ def run_app():
     parser_tr.add_argument("-g", "--glossary", default=None, help="用語集CSVファイルのパス")
     parser_tr.add_argument("-r", "--ref", default=None, help="旧バージョンのディレクトリパス (翻訳を流用するために使用)")
     parser_tr.add_argument("--no-sort", action="store_true", help="キーの自動ソートを無効化し、元の順序でバッチ処理します")
+    parser_tr.add_argument("--flex", action="store_true", help="Flexモード (service_tier=flex) でリクエストを送信します")
 
     parser_col = subparsers.add_parser("col", help="翻訳済みのファイルを集約してリソースパックを作成します")
     parser_col.add_argument("source", help="検索元のディレクトリパス")
@@ -40,17 +41,17 @@ def run_app():
     parser_col.add_argument("-m", "--mc-version", default="1.20.1", help="対象のMinecraftバージョン(デフォルト: 1.20.1)")
 
     parser_glos = subparsers.add_parser("glos", help="指定ディレクトリ以下を走査し、名詞句から用語集を作成します")
-    parser_glos.add_argument("src_dir", help="探索元のソースディレクトリパス")
-    parser_glos.add_argument("--tgt-dir", default=None, help="訳語を抽出するターゲットディレクトリパス（任意）")
+    parser_glos.add_argument("src_dir", help="用語（原語）を抽出するソース言語ファイルのルートディレクトリ")
+    parser_glos.add_argument("--tgt-dir", default=None, help="既存訳語をペアリングして抽出する場合の、ターゲット言語ファイルのルートディレクトリ（任意）")
     parser_glos.add_argument("-o", "--output", default="glossary_generated.csv", help="出力・追記するCSVのパス")
-    parser_glos.add_argument("-s", "--source", default="en_us", help="翻訳元の言語コード (デフォルト: en_us)")
-    parser_glos.add_argument("-t", "--target", default="ja_jp", help="翻訳先の言語コード (デフォルト: ja_jp)")
+    parser_glos.add_argument("-s", "--source", default="en_us", help="原語（ソース）の言語コード。この言語ファイル(例: en_us.json)を探索します (デフォルト: en_us)")
+    parser_glos.add_argument("-t", "--target", default="ja_jp", help="訳語（ターゲット）の言語コード。tgt_dir指定時にこの言語ファイル(例: ja_jp.json)を探します (デフォルト: ja_jp)")
 
     args = parser.parse_args()
 
     if args.command == "tr":
         recursive_translator.run_recursive(
-            args.directory, args.source, args.target, args.glossary, args.ref, args.no_sort
+            args.directory, args.source, args.target, args.glossary, args.ref, args.no_sort, args.flex
         )
     elif args.command == "col":
         pack_maker.run_pack_maker(

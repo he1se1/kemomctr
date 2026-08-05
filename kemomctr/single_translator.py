@@ -9,7 +9,7 @@ current_thread = None
 # -------------------------------------------------------------
 
 # 設定
-MODEL_NAME = os.getenv("KEMOMCTR_MODEL", "gemini-3-flash-preview")
+MODEL_NAME = os.getenv("KEMOMCTR_MODEL", "gemini-3.5-flash-lite")
 BATCH_SIZE = 30
 
 LANG_NAME_MAP = {
@@ -45,7 +45,7 @@ def normalize_response(result):
         return new_dict
     return None
 
-def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, target_lang, glossary):
+def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, target_lang, glossary, flex=False):
     s_name = get_lang_name(source_lang)
     t_name = get_lang_name(target_lang)
 
@@ -86,14 +86,18 @@ def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, 
 
     try:
         print(f"    - Batch {chunk_index}/{total_chunks} (約{len(chunk_data)}行) 処理中...", end="", flush=True)
+        config_kwargs = {
+            "system_instruction": system_instruction,
+            "response_mime_type": "application/json",
+            "temperature": 0.1
+        }
+        if flex:
+            config_kwargs["service_tier"] = "flex"
+
         response = client.models.generate_content(
             model=MODEL_NAME,
             contents=prompt_text,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                response_mime_type="application/json",
-                temperature=0.1
-            )
+            config=types.GenerateContentConfig(**config_kwargs)
         )
         raw_result = json.loads(response.text)
         final_dict = normalize_response(raw_result)
@@ -108,7 +112,7 @@ def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, 
         print(f" 失敗: {e}")
         return None
 
-def process_single_file(client, src_path_full, tgt_path_full, target_dir, source_lang, target_lang, glossary, translation_memory=None, no_sort=False):
+def process_single_file(client, src_path_full, tgt_path_full, target_dir, source_lang, target_lang, glossary, translation_memory=None, no_sort=False, flex=False):
     global CANCEL_REQUESTED
     interrupted = False
     new_translations = {}
@@ -212,7 +216,7 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
                     interrupted = True
                     break
                 
-                translated_chunk = translate_chunk(client, chunk, i, len(chunks), source_lang, target_lang, glossary)
+                translated_chunk = translate_chunk(client, chunk, i, len(chunks), source_lang, target_lang, glossary, flex=flex)
                 if translated_chunk and isinstance(translated_chunk, dict):
                     new_translations.update(translated_chunk)
                 else:
