@@ -234,6 +234,7 @@ class MainWindow(QMainWindow):
         # オプション
         self.tr_no_sort = QCheckBox("キーの自動ソートを無効化 (--no-sort)")
         self.tr_flex = QCheckBox("Flexモードでリクエスト (--flex)")
+        self.tr_flex.setChecked(True)
         layout.addWidget(self.tr_no_sort)
         layout.addWidget(self.tr_flex)
 
