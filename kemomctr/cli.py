@@ -47,6 +47,8 @@ def run_app():
     parser_glos.add_argument("-s", "--source", default="en_us", help="原語（ソース）の言語コード。この言語ファイル(例: en_us.json)を探索します (デフォルト: en_us)")
     parser_glos.add_argument("-t", "--target", default="ja_jp", help="訳語（ターゲット）の言語コード。tgt_dir指定時にこの言語ファイル(例: ja_jp.json)を探します (デフォルト: ja_jp)")
 
+    parser_mcp = subparsers.add_parser("mcp", help="kemomctr MCP サーバーを起動します (stdio)")
+
     args = parser.parse_args()
 
     if args.command == "tr":
@@ -61,6 +63,9 @@ def run_app():
         glossary_maker.run_glossary_maker(
             args.src_dir, args.tgt_dir, args.output, args.source, args.target
         )
+    elif args.command == "mcp":
+        from . import mcp_server
+        mcp_server.run_mcp_server()
 
 def main():
     try:

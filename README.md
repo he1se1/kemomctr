@@ -1,9 +1,9 @@
 # kemomctr
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 
-AI-driven Minecraft Mod translator featuring recursive search, glossary support, and resume functionality via Gemini. Supports MC1.13-1.20.  
-MinecraftのModのAI翻訳ツール。翻訳対象ファイルを探索しての翻訳が可能。Geminiを使用。Minecraft バージョン1.13から1.20までに対応。
+AI-driven Minecraft Mod translator featuring recursive search, glossary support, Model Context Protocol (MCP) server integration, and resume functionality. Supports MC1.13-1.20.  
+MinecraftのModのAI翻訳ツール。翻訳対象ファイルを探索しての翻訳、用語集適用、Model Context Protocol (MCP) サーバー連携に対応。Minecraft バージョン1.13から1.20までに対応。
 
 > [!TIP]
 > 🔰 **はじめての方・操作に不慣れな方へ**  
@@ -78,7 +78,7 @@ export GOOGLE_API_KEY="<YOUR_API_KEY>"
 # 📄 使用方法
 引数を何もつけずに実行すると、GUIが立ち上がります。
 
-kemomctr は、翻訳を行う `tr` コマンド、リソースパックを構築する `col` コマンド、および用語集を自動生成する `glos` コマンドの3つの機能を持っています。
+kemomctr は、翻訳を行う `tr` コマンド、リソースパックを構築する `col` コマンド、用語集を自動生成する `glos` コマンド、および MCP (Model Context Protocol) サーバーとして起動する `mcp` コマンドの4つの機能を持っています。
 
 ## 1. `tr` 翻訳モード
 指定したディレクトリ以下にある言語ファイルを探索し、Geminiで翻訳し同じ場所に結果を保存します。
@@ -146,6 +146,35 @@ kemomctr glos /path/to/src/lang/ --tgt-dir /path/to/tgt/lang/ -o my_glossary.csv
 - `-t` / `--target` : 訳語の言語コード (デフォルト: ja_jp)
 
 収集したCSVはそのまま `tr` コマンドの `-g` オプションで利用可能です。また、指定した用語集は翻訳時に動的フィルタリングされるため、万単位の行数があってもAPIコンテキストを圧迫せず効率的に適用されます。
+
+## 4. `mcp` MCP サーバーモード (Model Context Protocol)
+`kemomctr` を MCP サーバー（stdio トランスポート）として起動します。  
+Claude Desktop、Cursor、VS Code などの MCP 対応クライアントからツール経由で Mod の未翻訳抽出、翻訳保存、リソースパック生成、用語集抽出を実行できるようになります。
+
+起動コマンド
+```Bash
+kemomctr mcp
+# または専用バイナリ
+kemomctr-mcp
+```
+
+### 提供 MCP ツール一覧
+- `scan_untranslated_batches`: 対象ディレクトリから未翻訳キーを自動探索し、用語集ヒット情報・翻訳メモリ適用済みデータ・未翻訳プロンプトバッチを取得します。
+- `save_translation_batch`: 翻訳完了したキー・値ペアを指定の言語ファイル（例: `ja_jp.json`）にアトミック保存します。
+- `build_resource_pack`: 翻訳済み言語ファイルを集約し、Minecraft用リソースパックを構築します。
+- `extract_glossary_terms`: Modファイル群から名詞キーを抽出して用語集CSVを自動作成・更新します。
+
+### Claude Desktop 等の設定例 (`claude_desktop_config.json`)
+```json
+{
+  "mcpServers": {
+    "kemomctr": {
+      "command": "uv",
+      "args": ["tool", "run", "kemomctr-mcp"]
+    }
+  }
+}
+```
 
 
 # 🗺️実装予定機能

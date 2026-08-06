@@ -45,22 +45,10 @@ def normalize_response(result):
         return new_dict
     return None
 
-def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, target_lang, glossary, flex=False):
+def build_system_instruction(source_lang, target_lang, filtered_glossary):
     s_name = get_lang_name(source_lang)
     t_name = get_lang_name(target_lang)
-
-    # 用語集のフィルタリング（チャンク内のテキストに含まれる用語のみを抽出）
-    filtered_glossary = {}
-    if glossary:
-        chunk_text_lower = " ".join(str(v) for v in chunk_data.values()).lower()
-        for term, translation in glossary.items():
-            if term.lower() in chunk_text_lower:
-                filtered_glossary[term] = translation
-
-    if filtered_glossary:
-        print(f" (用語集ヒット: {len(filtered_glossary)}件)")
-
-    system_instruction = f"""
+    return f"""
     You are a professional translator for Minecraft Mods.
     Translate the JSON values from {s_name} to {t_name}.
 
@@ -79,10 +67,152 @@ def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, 
     {json.dumps(filtered_glossary, ensure_ascii=False)}
     """
 
-    prompt_text = f"""
-    Translate these entries:
-    {json.dumps(chunk_data, ensure_ascii=False)}
+def filter_glossary_for_chunk(chunk_data, glossary):
+    filtered_glossary = {}
+    if glossary:
+        chunk_text_lower = " ".join(str(v) for v in chunk_data.values()).lower()
+        for term, translation in glossary.items():
+            if term.lower() in chunk_text_lower:
+                filtered_glossary[term] = translation
+    return filtered_glossary
+
+def prepare_translation_batches(src_path_full, tgt_path_full, source_lang="en_us", target_lang="ja_jp", glossary=None, translation_memory=None, no_sort=False, batch_size=BATCH_SIZE):
     """
+    ソースファイルとターゲットファイルを読み込み、未翻訳キーを検出してバッチデータを生成します。
+    """
+    existing_tgt_data = {}
+    tm_applied_translations = {}
+
+    with open(src_path_full, 'r', encoding='utf-8') as f:
+        source_data = json.load(f)
+    if not isinstance(source_data, dict):
+        return None
+
+    if os.path.exists(tgt_path_full):
+        try:
+            with open(tgt_path_full, 'r', encoding='utf-8') as f:
+                loaded_data = json.load(f)
+            if isinstance(loaded_data, list):
+                existing_tgt_data = {} 
+            elif isinstance(loaded_data, dict):
+                existing_tgt_data = loaded_data
+        except Exception:
+            pass
+
+    missing_data = {k: v for k, v in source_data.items() if k not in existing_tgt_data}
+    if not missing_data:
+        return None
+    
+    tm_hit_count = 0
+    final_missing_data = {}
+
+    if translation_memory:
+        for key, src_text in missing_data.items():
+            if src_text in translation_memory:
+                tm_applied_translations[key] = translation_memory[src_text]
+                tm_hit_count += 1
+            else:
+                final_missing_data[key] = src_text
+    else:
+        final_missing_data = missing_data
+
+    path_lower = src_path_full.lower()
+    is_quest_path = "quest" in path_lower
+    skip_sort = no_sort or is_quest_path
+    
+    raw_chunks = []
+    if final_missing_data:
+        if skip_sort:
+            items = list(final_missing_data.items())
+            for i in range(0, len(items), batch_size):
+                raw_chunks.append(dict(items[i:i + batch_size]))
+        else:
+            from . import lang_sorter
+            key_clusters = lang_sorter.get_clustered_missing_keys(source_data, list(final_missing_data.keys()))
+            
+            current_chunk = {}
+            for cluster_keys in key_clusters:
+                if len(cluster_keys) > batch_size:
+                    if current_chunk:
+                        raw_chunks.append(current_chunk)
+                        current_chunk = {}
+                    for i in range(0, len(cluster_keys), batch_size):
+                        sub_chunk = {k: final_missing_data[k] for k in cluster_keys[i:i + batch_size]}
+                        raw_chunks.append(sub_chunk)
+                    continue
+
+                if len(current_chunk) + len(cluster_keys) > batch_size:
+                    if current_chunk:
+                        raw_chunks.append(current_chunk)
+                        current_chunk = {}
+                
+                for k in cluster_keys:
+                    current_chunk[k] = final_missing_data[k]
+                    
+            if current_chunk:
+                raw_chunks.append(current_chunk)
+
+    total_chunks = len(raw_chunks)
+    prepared_chunks = []
+
+    for i, chunk_data in enumerate(raw_chunks, 1):
+        filtered_glos = filter_glossary_for_chunk(chunk_data, glossary)
+        system_instruction = build_system_instruction(source_lang, target_lang, filtered_glos)
+        prompt_text = f"Translate these entries:\n{json.dumps(chunk_data, ensure_ascii=False)}"
+        
+        prepared_chunks.append({
+            "chunk_index": i,
+            "total_chunks": total_chunks,
+            "chunk_data": chunk_data,
+            "filtered_glossary": filtered_glos,
+            "system_instruction": system_instruction,
+            "prompt_text": prompt_text
+        })
+
+    return {
+        "src_path_full": src_path_full,
+        "tgt_path_full": tgt_path_full,
+        "existing_tgt_data": existing_tgt_data,
+        "tm_applied_translations": tm_applied_translations,
+        "tm_hit_count": tm_hit_count,
+        "total_missing_count": len(missing_data),
+        "api_missing_count": len(final_missing_data),
+        "chunks": prepared_chunks
+    }
+
+def save_translation_results(tgt_path_full, existing_tgt_data, new_translations):
+    """
+    既存のターゲットデータに新しい翻訳結果をマージして保存します。
+    """
+    if not new_translations:
+        return False
+    
+    updated_tgt_data = dict(existing_tgt_data)
+    updated_tgt_data.update(new_translations)
+    
+    temp_file = f"{tgt_path_full}.tmp"
+    try:
+        os.makedirs(os.path.dirname(tgt_path_full), exist_ok=True)
+        with open(temp_file, 'w', encoding='utf-8') as f:
+            json.dump(updated_tgt_data, f, ensure_ascii=False, indent=4)
+        os.replace(temp_file, tgt_path_full)
+        return True
+    except Exception as save_err:
+        print(f"  [エラー] 保存に失敗しました: {save_err}")
+        if os.path.exists(temp_file):
+            try:
+                os.remove(temp_file)
+            except Exception:
+                pass
+        return False
+
+def translate_chunk(client, chunk_data, chunk_index, total_chunks, source_lang, target_lang, glossary, flex=False):
+    filtered_glossary = filter_glossary_for_chunk(chunk_data, glossary)
+    if filtered_glossary:
+        print(f" (用語集ヒット: {len(filtered_glossary)}件)")
+
+    system_instruction = build_system_instruction(source_lang, target_lang, filtered_glossary)
+    prompt_text = f"Translate these entries:\n{json.dumps(chunk_data, ensure_ascii=False)}"
 
     try:
         print(f"    - Batch {chunk_index}/{total_chunks} (約{len(chunk_data)}行) 処理中...", end="", flush=True)
@@ -116,7 +246,6 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
     global CANCEL_REQUESTED
     interrupted = False
     new_translations = {}
-    existing_tgt_data = {}
     
     try:
         rel_path = os.path.relpath(src_path_full, target_dir)
@@ -125,128 +254,68 @@ def process_single_file(client, src_path_full, tgt_path_full, target_dir, source
     print(f"\n[{rel_path}]")
 
     try:
-        with open(src_path_full, 'r', encoding='utf-8') as f:
-            source_data = json.load(f)
-        if not isinstance(source_data, dict):
+        prepared = prepare_translation_batches(
+            src_path_full=src_path_full,
+            tgt_path_full=tgt_path_full,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            glossary=glossary,
+            translation_memory=translation_memory,
+            no_sort=no_sort
+        )
+
+        if not prepared:
             return False
 
-        if os.path.exists(tgt_path_full):
-            try:
-                with open(tgt_path_full, 'r', encoding='utf-8') as f:
-                    loaded_data = json.load(f)
-                if isinstance(loaded_data, list):
-                    print(f"  [修復] {os.path.basename(tgt_path_full)} がリスト形式でした。辞書形式にリセットします。")
-                    existing_tgt_data = {} 
-                elif isinstance(loaded_data, dict):
-                    existing_tgt_data = loaded_data
-            except Exception:
-                pass
+        existing_tgt_data = prepared["existing_tgt_data"]
+        new_translations.update(prepared["tm_applied_translations"])
 
-        missing_data = {k: v for k, v in source_data.items() if k not in existing_tgt_data}
-        if not missing_data:
-            return False
-        
-        tm_hit_count = 0
-        final_missing_data = {}
+        if prepared["tm_hit_count"] > 0:
+            print(f"  -> 翻訳メモリ適用: {prepared['tm_hit_count']}件 (API節約!)")
 
-        if translation_memory:
-            for key, src_text in missing_data.items():
-                if src_text in translation_memory:
-                    new_translations[key] = translation_memory[src_text]
-                    tm_hit_count += 1
-                else:
-                    final_missing_data[key] = src_text
-        else:
-            final_missing_data = missing_data
+        if prepared["chunks"]:
+            print(f"  -> 翻訳開始: {prepared['api_missing_count']}項目 / {len(prepared['chunks'])}バッチ")
 
-        if tm_hit_count > 0:
-            print(f"  -> 翻訳メモリ適用: {tm_hit_count}件 (API節約!)")
-        
-        if not final_missing_data and not new_translations:
-            return False
-        
-        if final_missing_data:
-            print(f"  -> API翻訳へ: {len(final_missing_data)}件")
-            
-            path_lower = src_path_full.lower()
-            is_quest_path = "quest" in path_lower
-            skip_sort = no_sort or is_quest_path
-            
-            chunks = []
-            
-            if skip_sort:
-                reason = "[--no-sort] 指定あり" if no_sort else "パスに 'quest' を検知"
-                print(f"  -> {reason}: 事前ソートを尊重し、元の順序でバッチ処理します")
-                items = list(final_missing_data.items())
-                for i in range(0, len(items), BATCH_SIZE):
-                    chunks.append(dict(items[i:i + BATCH_SIZE]))
+        for chunk_info in prepared["chunks"]:
+            if CANCEL_REQUESTED:
+                print("\n  [!] GUIからの停止リクエストを検知。現在完了しているバッチまでのデータを保存して終了します...")
+                interrupted = True
+                break
+
+            i = chunk_info["chunk_index"]
+            total_chunks = chunk_info["total_chunks"]
+            chunk = chunk_info["chunk_data"]
+
+            translated_chunk = translate_chunk(
+                client=client,
+                chunk_data=chunk,
+                chunk_index=i,
+                total_chunks=total_chunks,
+                source_lang=source_lang,
+                target_lang=target_lang,
+                glossary=glossary,
+                flex=flex
+            )
+            if translated_chunk and isinstance(translated_chunk, dict):
+                new_translations.update(translated_chunk)
             else:
-                from . import lang_sorter
-                key_clusters = lang_sorter.get_clustered_missing_keys(source_data, list(final_missing_data.keys()))
-                
-                current_chunk = {}
-                for cluster_keys in key_clusters:
-                    if len(cluster_keys) > BATCH_SIZE:
-                        if current_chunk:
-                            chunks.append(current_chunk)
-                            current_chunk = {}
-                        for i in range(0, len(cluster_keys), BATCH_SIZE):
-                            sub_chunk = {k: final_missing_data[k] for k in cluster_keys[i:i + BATCH_SIZE]}
-                            chunks.append(sub_chunk)
-                        continue
-
-                    if len(current_chunk) + len(cluster_keys) > BATCH_SIZE:
-                        if current_chunk:
-                            chunks.append(current_chunk)
-                            current_chunk = {}
-                    
-                    for k in cluster_keys:
-                        current_chunk[k] = final_missing_data[k]
-                        
-                if current_chunk:
-                    chunks.append(current_chunk)
-            
-            if chunks:
-                print(f"  -> 翻訳開始: {len(final_missing_data)}項目 / {len(chunks)}バッチ")
-
-            for i, chunk in enumerate(chunks, 1):
-                # ▼ 追加: ループ毎にGUIからの中断リクエストをチェック ▼
-                if CANCEL_REQUESTED:
-                    print("\n  [!] GUIからの停止リクエストを検知。現在完了しているバッチまでのデータを保存して終了します...")
-                    interrupted = True
-                    break
-                
-                translated_chunk = translate_chunk(client, chunk, i, len(chunks), source_lang, target_lang, glossary, flex=flex)
-                if translated_chunk and isinstance(translated_chunk, dict):
-                    new_translations.update(translated_chunk)
-                else:
-                    print(f"    [警告] Batch {i} 失敗 (スキップ)")
-                time.sleep(1)
+                print(f"    [警告] Batch {i} 失敗 (スキップ)")
+            time.sleep(1)
 
     except KeyboardInterrupt:
-        # CLI用の中断検知
         print("\n  [!] ユーザーによる中断を検知しました。現在完了しているバッチまでのデータを保存して終了します...")
         interrupted = True
     except Exception as e:
         print(f"  [エラー] {e}")
         return False
-        
+
     if new_translations:
-        existing_tgt_data.update(new_translations)
-        temp_file = f"{tgt_path_full}.tmp"
-        try:
-            with open(temp_file, 'w', encoding='utf-8') as f:
-                json.dump(existing_tgt_data, f, ensure_ascii=False, indent=4)
-            os.replace(temp_file, tgt_path_full)
-            
+        saved = save_translation_results(tgt_path_full, existing_tgt_data, new_translations)
+        if saved:
             count_text = f" (中断により途中まで)" if interrupted else ""
             print(f"  -> 保存完了: +{len(new_translations)}件{count_text}")
-        except Exception as save_err:
-            print(f"  [エラー] 保存に失敗しました: {save_err}")
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
     else:
         if not interrupted:
             print("  -> 追加なし")
 
-    return interrupted
+    return interrupted
